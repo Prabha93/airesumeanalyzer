@@ -1,0 +1,143 @@
+:root {
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  color: #0e1a2f;
+  background: radial-gradient(circle at top right, #dff5ec 0%, #edf4ff 35%, #f8fafc 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1rem 3rem;
+}
+
+.hero {
+  background: linear-gradient(135deg, #0b3c5d, #187f6f);
+  color: white;
+  border-radius: 20px;
+  padding: 2rem;
+  box-shadow: 0 20px 60px rgba(18, 44, 70, 0.2);
+}
+
+.kicker {
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+.grid {
+  margin-top: 1.25rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.card {
+  background: #ffffffcc;
+  backdrop-filter: blur(6px);
+  border-radius: 16px;
+  padding: 1.25rem;
+  box-shadow: 0 10px 30px rgba(19, 40, 66, 0.08);
+}
+
+.stack {
+  display: grid;
+  gap: 0.75rem;
+}
+
+input[type="file"] {
+  border: 1px solid #c1d2e4;
+  border-radius: 10px;
+  padding: 0.65rem;
+  background: white;
+}
+
+button {
+  border: 0;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  background: #0f8f72;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.error {
+  color: #b42318;
+  font-weight: 600;
+}
+
+.summary {
+  color: #11536c;
+  font-weight: 600;
+}
+
+.placeholder {
+  color: #4e5e73;
+}
+
+.results {
+  margin-top: 1rem;
+}
+
+.jobs {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.job {
+  border: 1px solid #d8e3f0;
+  border-radius: 12px;
+  padding: 1rem;
+  background: white;
+}
+
+.jobHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.score {
+  background: #e6fbf2;
+  color: #0f6d56;
+  border: 1px solid #a5e3c7;
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  font-weight: 700;
+}
+
+.meta {
+  color: #55657a;
+  margin-top: -0.25rem;
+}
+
+ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+}
+
+@media (max-width: 640px) {
+  .hero {
+    padding: 1.3rem;
+  }
+
+  .page {
+    padding: 1rem 0.8rem 2rem;
+  }
+}

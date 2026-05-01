@@ -1,0 +1,36 @@
+{
+  "name": "airesumeanalyzer",
+  "version": "0.1.0",
+  "description": "AI Resume Analyzer + Job Matcher monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w api\" \"npm run dev -w web\"",
+    "build": "npm run build -w @airesume/shared && npm run build -w api && npm run build -w web",
+    "start:api": "npm run start -w api",
+    "dev:api": "npm run dev -w api",
+    "dev:web": "npm run dev -w web"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Prabha93/airesumeanalyzer.git"
+  },
+  "keywords": [
+    "resume",
+    "job-matching",
+    "open-source",
+    "typescript"
+  ],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Prabha93/airesumeanalyzer/issues"
+  },
+  "homepage": "https://github.com/Prabha93/airesumeanalyzer#readme",
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
