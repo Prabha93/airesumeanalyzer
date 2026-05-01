@@ -10,7 +10,8 @@ export const sampleJobs: JobPosting[] = [
       "Build and deploy NLP pipelines, tune embeddings, and ship production APIs for candidate-job ranking.",
     requiredSkills: ["python", "fastapi", "nlp", "machine learning", "docker"],
     niceToHaveSkills: ["postgresql", "kubernetes", "llm", "aws"],
-    experienceLevel: "mid"
+    experienceLevel: "mid",
+    source: "sample"
   },
   {
     id: "job-002",
@@ -21,7 +22,8 @@ export const sampleJobs: JobPosting[] = [
       "Develop React frontend and Node APIs. Collaborate with product teams and improve test coverage.",
     requiredSkills: ["react", "typescript", "node.js", "express", "sql"],
     niceToHaveSkills: ["docker", "redis", "jest", "aws"],
-    experienceLevel: "mid"
+    experienceLevel: "mid",
+    source: "sample"
   },
   {
     id: "job-003",
@@ -32,7 +34,8 @@ export const sampleJobs: JobPosting[] = [
       "Build dashboards, analyze hiring trends, and communicate insights through data storytelling.",
     requiredSkills: ["sql", "python", "excel", "tableau", "statistics"],
     niceToHaveSkills: ["power bi", "pandas", "communication"],
-    experienceLevel: "junior"
+    experienceLevel: "junior",
+    source: "sample"
   },
   {
     id: "job-004",
@@ -43,7 +46,8 @@ export const sampleJobs: JobPosting[] = [
       "Design scalable backend services, maintain databases, and optimize API performance.",
     requiredSkills: ["node.js", "typescript", "postgresql", "api design", "redis"],
     niceToHaveSkills: ["kafka", "docker", "kubernetes"],
-    experienceLevel: "senior"
+    experienceLevel: "senior",
+    source: "sample"
   },
   {
     id: "job-005",
@@ -54,6 +58,7 @@ export const sampleJobs: JobPosting[] = [
       "Automate model deployment workflows and monitor model quality in production.",
     requiredSkills: ["python", "docker", "kubernetes", "mlops", "ci/cd"],
     niceToHaveSkills: ["terraform", "prometheus", "grafana"],
-    experienceLevel: "mid"
+    experienceLevel: "mid",
+    source: "sample"
   }
 ];

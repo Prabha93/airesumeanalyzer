@@ -9,6 +9,10 @@ export interface JobPosting {
   requiredSkills: string[];
   niceToHaveSkills: string[];
   experienceLevel: ExperienceLevel;
+  source?: "sample" | "remotive";
+  jobUrl?: string;
+  companyLinkedinUrl?: string;
+  postedAt?: string;
 }
 
 export interface ResumeProfile {
