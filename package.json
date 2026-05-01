@@ -32,5 +32,10 @@
   "homepage": "https://github.com/Prabha93/airesumeanalyzer#readme",
   "devDependencies": {
     "concurrently": "^9.2.1"
+  },
+  "overrides": {
+    "onnx-proto": {
+      "protobufjs": "^7.5.5"
+    }
   }
 }

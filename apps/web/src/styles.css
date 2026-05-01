@@ -86,6 +86,18 @@ body { min-height: 100vh; }
   gap: 0.4rem;
 }
 
+.statAi {
+  background: rgba(16,230,130,0.18);
+  border-color: rgba(16,230,130,0.4);
+  font-weight: 600;
+}
+
+.statAiLoading {
+  background: rgba(255,200,50,0.15);
+  border-color: rgba(255,200,50,0.35);
+  opacity: 0.85;
+}
+
 /* ─── Card ───────────────────────────────────────────────── */
 .card {
   background: var(--surface);
@@ -230,6 +242,19 @@ body { min-height: 100vh; }
   border-radius: 8px;
   padding: 0.7rem 1rem;
   font-size: 0.88rem;
+}
+
+.infoLine {
+  margin-top: 0.6rem;
+  font-size: 0.83rem;
+  color: var(--muted);
+}
+
+.semanticNote {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--accent);
+  font-weight: 500;
 }
 
 /* ─── Section titles ─────────────────────────────────────── */

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { JobMatchWithDetails } from "@airesume/shared";
 
 type MatchApiResponse = {
@@ -10,7 +10,8 @@ type MatchApiResponse = {
   };
   matches: JobMatchWithDetails[];
   totalJobs: number;
-  source?: "sample" | "remotive";
+  scoringMode?: "rule-based" | "hybrid";
+  liveSources?: string[];
   fallbackReason?: string;
   profileSuggestions?: {
     recommendedSearchQueries: string[];
@@ -45,6 +46,22 @@ export default function App(): JSX.Element {
   const [useLiveJobs, setUseLiveJobs] = useState(true);
   const [query, setQuery] = useState("ai engineer");
   const [location, setLocation] = useState("remote");
+  const [aiReady, setAiReady] = useState(false);
+
+  // Poll model status until AI model is warm
+  useEffect(() => {
+    if (aiReady) return;
+    const check = async () => {
+      try {
+        const r = await fetch(`${API_URL}/api/model/status`);
+        const j = await r.json() as { ready: boolean };
+        if (j.ready) setAiReady(true);
+      } catch { /* ignore */ }
+    };
+    check();
+    const id = setInterval(check, 5000);
+    return () => clearInterval(id);
+  }, [aiReady]);
 
   async function handleAnalyze(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -100,6 +117,10 @@ export default function App(): JSX.Element {
             <div className="stat"><span>🌐</span>Live Job Data</div>
             <div className="stat"><span>🔍</span>Skill Gap Analysis</div>
             <div className="stat"><span>🔗</span>LinkedIn Links</div>
+            <div className={`stat ${aiReady ? "statAi" : "statAiLoading"}`}>
+              <span>{aiReady ? "✨" : "⏳"}</span>
+              {aiReady ? "AI Scoring: on" : "AI model loading…"}
+            </div>
           </div>
         </div>
       </header>
@@ -147,6 +168,14 @@ export default function App(): JSX.Element {
           </div>
           {error ? <p className="errorBanner">{error}</p> : null}
           {data?.fallbackReason ? <p className="infoBanner">{data.fallbackReason}</p> : null}
+          {data?.liveSources && data.liveSources.length > 0 && (
+            <p className="infoLine">Job sources: {data.liveSources.join(" + ")}</p>
+          )}
+          {data?.scoringMode && (
+            <p className="infoLine">
+              Scoring: <strong>{data.scoringMode === "hybrid" ? "✨ AI hybrid (semantic + rule-based)" : "📏 Rule-based only"}</strong>
+            </p>
+          )}
         </form>
       </section>
 
@@ -159,7 +188,9 @@ export default function App(): JSX.Element {
               {data.profile.yearsOfExperience !== undefined && (
                 <span className="badge">{data.profile.yearsOfExperience} yrs exp</span>
               )}
-              <span className="badgeGray">source: {data.source ?? "sample"}</span>
+              {data.liveSources && data.liveSources.length > 0 && (
+                <span className="badgeGray">sources: {data.liveSources.join(", ")}</span>
+              )}
             </h2>
             <div className="signalsGrid">
               <div className="signalBox">
@@ -261,6 +292,11 @@ export default function App(): JSX.Element {
                       <ul>
                         {entry.match.reasons.map((r) => <li key={r}>{r}</li>)}
                       </ul>
+                      {entry.match.semanticScore !== undefined && (
+                        <p className="semanticNote">
+                          ✨ Semantic score: {entry.match.semanticScore}% (neural embedding similarity)
+                        </p>
+                      )}
                     </details>
                   </article>
                 ))}

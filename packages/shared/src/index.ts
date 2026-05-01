@@ -9,7 +9,7 @@ export interface JobPosting {
   requiredSkills: string[];
   niceToHaveSkills: string[];
   experienceLevel: ExperienceLevel;
-  source?: "sample" | "remotive";
+  source?: "sample" | "remotive" | "arbeitnow";
   jobUrl?: string;
   companyLinkedinUrl?: string;
   postedAt?: string;
@@ -25,7 +25,10 @@ export interface ResumeProfile {
 
 export interface MatchResult {
   jobId: string;
+  /** Hybrid score (rule-based + semantic when AI model is loaded), 0–100 */
   score: number;
+  /** Raw semantic cosine-similarity score from the embedding model, 0–100 */
+  semanticScore?: number;
   matchedSkills: string[];
   missingSkills: string[];
   reasons: string[];

@@ -1,4 +1,5 @@
 import { JobMatchWithDetails, JobPosting, MatchResult, ResumeProfile } from "@airesume/shared";
+import { computeSemanticScore } from "./embedder";
 
 function toSet(values: string[]): Set<string> {
   return new Set(values.map((v) => v.toLowerCase().trim()));
@@ -66,4 +67,32 @@ export function matchResumeToJobs(resume: ResumeProfile, jobs: JobPosting[]): Jo
   });
 
   return ranked.sort((a, b) => b.match.score - a.match.score);
+}
+
+/**
+ * Async post-processing step: adds a semantic similarity score from the
+ * embedding model to each result and blends it into the final score.
+ * Mutates `results` in place (updates scores + re-sorts).
+ * No-op when the model is unavailable (scores stay rule-based).
+ */
+export async function enrichWithSemanticScores(
+  resumeText: string,
+  results: JobMatchWithDetails[]
+): Promise<void> {
+  await Promise.all(
+    results.map(async (entry) => {
+      const jobText = `${entry.job.title} ${entry.job.description}`;
+      const semScore = await computeSemanticScore(resumeText, jobText, entry.job.id);
+
+      if (semScore !== null) {
+        entry.match.semanticScore = semScore;
+        // Hybrid blend: 55% rule-based signal + 45% neural semantic score
+        entry.match.score = Math.round(entry.match.score * 0.55 + semScore * 0.45);
+        entry.match.reasons.push(`Semantic similarity: ${semScore}%`);
+      }
+    })
+  );
+
+  // Re-sort by updated hybrid scores
+  results.sort((a, b) => b.match.score - a.match.score);
 }

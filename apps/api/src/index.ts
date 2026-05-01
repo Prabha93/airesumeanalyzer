@@ -3,9 +3,10 @@ import dotenv from "dotenv";
 import express from "express";
 import multer from "multer";
 import { sampleJobs } from "./data/jobs";
-import { buildLinkedInJobSearchUrls, fetchRemotiveJobs } from "./utils/externalJobs";
-import { matchResumeToJobs } from "./utils/matcher";
+import { buildLinkedInJobSearchUrls, fetchAllLiveJobs } from "./utils/externalJobs";
+import { enrichWithSemanticScores, matchResumeToJobs } from "./utils/matcher";
 import { buildResumeProfile, extractTextFromFile } from "./utils/resumeParser";
+import { isSemanticModelReady, warmUpSemanticModel } from "./utils/embedder";
 
 dotenv.config();
 
@@ -17,8 +18,20 @@ const allowedOrigin = process.env.WEB_ORIGIN ?? "http://localhost:5173";
 app.use(cors({ origin: allowedOrigin }));
 app.use(express.json());
 
+// Warm up the semantic model in the background — server starts immediately,
+// model becomes available within 30-60 s on first run (downloads ~23 MB once).
+warmUpSemanticModel().catch(() => {});
+
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
+});
+
+app.get("/api/model/status", (_req, res) => {
+  res.json({
+    ready: isSemanticModelReady(),
+    model: "Xenova/all-MiniLM-L6-v2",
+    type: isSemanticModelReady() ? "hybrid (rule-based + semantic)" : "rule-based"
+  });
 });
 
 app.get("/api/jobs", (_req, res) => {
@@ -30,8 +43,8 @@ app.get("/api/jobs/search", async (req, res) => {
     const query = String(req.query.query ?? "").trim();
     const limit = Math.max(5, Math.min(Number(req.query.limit ?? 25), 100));
 
-    const jobs = await fetchRemotiveJobs({ query, limit });
-    res.json({ jobs, count: jobs.length, source: "remotive" });
+    const { jobs, sources } = await fetchAllLiveJobs({ query, limit });
+    res.json({ jobs, count: jobs.length, sources });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown server error";
     res.status(500).json({ error: message });
@@ -59,46 +72,49 @@ app.post("/api/match", upload.single("resume"), async (req, res) => {
 
     const profile = buildResumeProfile(extractedText);
 
+    // --- Job source selection ---
     let selectedJobs = sampleJobs;
-    let source: "sample" | "remotive" = "sample";
+    let liveSources: string[] = [];
     let fallbackReason: string | undefined;
 
     if (useLiveJobs) {
       try {
-        const liveJobs = await fetchRemotiveJobs({ query, limit: 40 });
+        const { jobs: liveJobs, sources } = await fetchAllLiveJobs({ query, limit: 40 });
         if (liveJobs.length > 0) {
           selectedJobs = liveJobs;
-          source = "remotive";
+          liveSources = sources;
         } else {
-          fallbackReason = "No live jobs returned, used sample jobs instead.";
+          fallbackReason = "No live jobs returned — used sample jobs instead.";
         }
       } catch (liveError) {
         fallbackReason =
           liveError instanceof Error
-            ? `Live job fetch failed, used sample jobs instead: ${liveError.message}`
-            : "Live job fetch failed, used sample jobs instead.";
+            ? `Live job fetch failed (${liveError.message}) — used sample jobs.`
+            : "Live job fetch failed — used sample jobs.";
       }
     }
 
+    // --- Rule-based matching ---
     const rankedMatches = matchResumeToJobs(profile, selectedJobs).slice(0, topK);
 
+    // --- Semantic enrichment (hybrid AI scoring if model is ready) ---
+    if (isSemanticModelReady()) {
+      await enrichWithSemanticScores(profile.rawText, rankedMatches);
+    }
+
+    const scoringMode: "rule-based" | "hybrid" = isSemanticModelReady() ? "hybrid" : "rule-based";
+
+    // --- LinkedIn search suggestions ---
     const preferredRoleTerms = [
-      "ai engineer",
-      "machine learning engineer",
-      "data scientist",
-      "backend engineer",
-      "full stack developer",
-      "mlops engineer",
-      "data analyst"
+      "ai engineer", "machine learning engineer", "data scientist",
+      "backend engineer", "full stack developer", "mlops engineer", "data analyst"
     ];
-
-    const titleTerms = rankedMatches.slice(0, 3).map((entry) => entry.job.title.toLowerCase());
-
+    const titleTerms = rankedMatches.slice(0, 3).map((e) => e.job.title.toLowerCase());
     const recommendedSearchQueries = [
       ...new Set(
         [...titleTerms, ...preferredRoleTerms, ...profile.detectedSkills]
-          .map((term) => term.trim().toLowerCase())
-          .filter((term) => term.length >= 4)
+          .map((t) => t.trim().toLowerCase())
+          .filter((t) => t.length >= 4)
       )
     ].slice(0, 5);
 
@@ -113,7 +129,8 @@ app.post("/api/match", upload.single("resume"), async (req, res) => {
       },
       matches: rankedMatches,
       totalJobs: selectedJobs.length,
-      source,
+      scoringMode,
+      liveSources,
       fallbackReason,
       profileSuggestions: {
         recommendedSearchQueries,

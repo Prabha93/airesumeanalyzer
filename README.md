@@ -10,13 +10,14 @@ No sign-up. No API key. Fully open-source.
 
 1. **Parse** — Extracts text from an uploaded resume using open-source libraries.
 2. **Signal extraction** — Detects skills, infers years of experience, and identifies education keywords.
-3. **Live job fetch** — Pulls real remote job listings from the Remotive open API.
-4. **Score** — Scores each job against the resume using a transparent weighted model:
-   - Required skill coverage (60%)
-   - Nice-to-have skill coverage (15%)
-   - Role keyword fit (15%)
-   - Experience level fit (10%)
-5. **Explain** — Returns matched skills, missing skills, and per-dimension score breakdown.
+3. **Live job fetch** — Pulls real remote job listings from two open APIs: Remotive and Arbeitnow.
+4. **Score** — Scores each job using a hybrid model combining rule-based signals and neural semantic similarity:
+   - Required skill coverage (rule-based 60%)
+   - Nice-to-have skill coverage (rule-based 15%)
+   - Role keyword fit (rule-based 15%)
+   - Experience level fit (rule-based 10%)
+   - Neural embedding cosine similarity (blended at 45% when AI model is ready)
+5. **Explain** — Returns matched skills, missing skills, semantic score, and per-dimension breakdown.
 6. **Suggest** — Generates LinkedIn job search URLs tailored to your profile.
 
 ---
@@ -28,7 +29,8 @@ No sign-up. No API key. Fully open-source.
 | Frontend | React 18, Vite, TypeScript |
 | Backend API | Node.js, Express, TypeScript, tsx (dev) |
 | Resume parsing | pdf-parse (PDF), mammoth (DOCX) |
-| Job data | Remotive open API (remote jobs) |
+| **AI / Semantic scoring** | **@xenova/transformers · Xenova/all-MiniLM-L6-v2 (runs in Node, no GPU)** |
+| Job data | Remotive open API · Arbeitnow open API (both free, no key) |
 | Shared types | TypeScript monorepo package |
 | Monorepo | npm workspaces |
 
@@ -42,41 +44,57 @@ flowchart TD
 
     subgraph Web["Frontend — React + Vite :5173"]
         UI["Upload Form\nJob keywords · Location · Live toggle"]
-        Results["Results Dashboard\nScore bars · Skill chips · Apply links"]
+        Results["Results Dashboard\nScore bars · Skill chips · Apply links\nAI scoring indicator · Semantic %"]
     end
 
     subgraph API["Backend — Express API :8080"]
         Router["/api/match"]
+        ModelStatus["/api/model/status"]
 
         subgraph Parse["Resume Processing"]
             Extractor["Text Extractor\npdf-parse · mammoth · plain text"]
             Profiler["Profile Builder\nSkill taxonomy · Experience regex\n→ ResumeProfile"]
         end
 
-        subgraph Jobs["Job Ingestion"]
-            Remotive["Remotive Adapter\nGET remotive.com/api/remote-jobs\nNormalise → JobPosting[]"]
-            SampleFallback["Sample Jobs Fallback\n(if live fetch fails)"]
+        subgraph Jobs["Job Ingestion (open APIs — no key required)"]
+            Remotive["Remotive Adapter\nGET remotive.com/api/remote-jobs"]
+            Arbeitnow["Arbeitnow Adapter\nGET arbeitnow.com/api/job-board-api"]
+            SampleFallback["Sample Jobs Fallback\n(if both live sources fail)"]
         end
 
-        Matcher["Scoring Engine\nRequired coverage × 0.60\nNice-to-have × 0.15\nRole keyword fit × 0.15\nExperience fit × 0.10\n→ ranked MatchResult[]"]
+        RuleEngine["Rule-Based Scorer\nRequired skills × 0.60\nNice-to-have × 0.15\nRole keyword fit × 0.15\nExperience fit × 0.10"]
+
+        subgraph AI["✨ AI Layer"]
+            Embedder["Semantic Embedder\n@xenova/transformers\nMean-pooled 384-dim vectors"]
+            CosineSim["Cosine Similarity\n→ semantic score 0–100"]
+            Hybrid["Hybrid Blender\n55% rule-based + 45% semantic\n→ final ranked MatchResult[]"]
+        end
 
         Suggest["Suggestion Builder\nLinkedIn job search URLs\nRecommended role queries"]
     end
 
-    ExternalAPI(["🌐 Remotive\nOpen Jobs API"])
+    RemotiveAPI(["🌐 Remotive\nOpen Jobs API"])
+    ArbeitnowAPI(["🌐 Arbeitnow\nOpen Jobs API"])
+    HFModel(["🤗 HuggingFace Hub\nall-MiniLM-L6-v2 ≈ 23 MB\n(downloaded once, cached)"])
 
-    User -->|"Upload resume\n+ search params"| UI
-    UI -->|"POST /api/match\nmultipart form-data"| Router
+    User -->|"Upload resume + search params"| UI
+    UI -->|"POST /api/match multipart"| Router
+    UI -->|"GET /api/model/status (poll 5s)"| ModelStatus
     Router --> Extractor
     Extractor --> Profiler
-    Router --> Remotive
-    Remotive -->|"fetch"| ExternalAPI
-    ExternalAPI -->|"job listings"| Remotive
-    Remotive -->|"JobPosting[]"| Matcher
-    SampleFallback -.->|"fallback"| Matcher
-    Profiler -->|"ResumeProfile"| Matcher
-    Matcher -->|"MatchResult[]"| Suggest
-    Suggest -->|"{ profile, matches,\nprofileSuggestions }"| Results
+    Router --> Remotive & Arbeitnow
+    Remotive -->|"fetch"| RemotiveAPI
+    Arbeitnow -->|"fetch"| ArbeitnowAPI
+    RemotiveAPI & ArbeitnowAPI -->|"JobPosting[]"| RuleEngine
+    SampleFallback -.->|"fallback"| RuleEngine
+    Profiler -->|"ResumeProfile"| RuleEngine
+    RuleEngine -->|"rule scores"| Hybrid
+    Profiler -->|"resume text"| Embedder
+    RuleEngine -->|"job texts"| Embedder
+    Embedder <-->|"model weights"| HFModel
+    Embedder --> CosineSim --> Hybrid
+    Hybrid -->|"ranked MatchResult[]"| Suggest
+    Suggest -->|"{ matches, scoringMode, liveSources }"| Results
     Results --> User
 ```
 

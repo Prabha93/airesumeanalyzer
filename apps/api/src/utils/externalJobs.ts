@@ -1,6 +1,8 @@
 import { JobPosting } from "@airesume/shared";
 import { skillTaxonomy } from "./skillTaxonomy";
 
+// ── Shared helpers ──────────────────────────────────────────────
+
 type RemotiveJob = {
   id: number;
   url: string;
@@ -13,6 +15,22 @@ type RemotiveJob = {
 
 type RemotiveResponse = {
   jobs?: RemotiveJob[];
+};
+
+type ArbeitnowJob = {
+  slug: string;
+  company_name: string;
+  title: string;
+  description: string;
+  remote: boolean;
+  url: string;
+  tags: string[];
+  location: string;
+  created_at?: number;
+};
+
+type ArbeitnowResponse = {
+  data?: ArbeitnowJob[];
 };
 
 function stripHtmlTags(input: string): string {
@@ -48,7 +66,9 @@ function buildLinkedInCompanySearchUrl(company: string): string {
   return `https://www.linkedin.com/search/results/companies/?keywords=${query}`;
 }
 
-function normalizeToJobPosting(job: RemotiveJob): JobPosting {
+// ── Remotive ────────────────────────────────────────────────
+
+function normalizeRemotiveJob(job: RemotiveJob): JobPosting {
   const cleanDescription = stripHtmlTags(job.description ?? "");
   const skillCandidates = extractSkillsFromText(`${job.title} ${cleanDescription}`);
 
@@ -81,14 +101,90 @@ export async function fetchRemotiveJobs(options?: {
 
   const response = await fetch(endpoint);
   if (!response.ok) {
-    throw new Error(`Failed to fetch remote jobs (${response.status}).`);
+    throw new Error(`Failed to fetch Remotive jobs (${response.status}).`);
   }
 
   const payload = (await response.json()) as RemotiveResponse;
-  const jobs = payload.jobs ?? [];
-
-  return jobs.slice(0, limit).map(normalizeToJobPosting);
+  return (payload.jobs ?? []).slice(0, limit).map(normalizeRemotiveJob);
 }
+
+// ── Arbeitnow (free, no auth required) ──────────────────────────
+// Note: Arbeitnow focuses on EU tech roles and is fully open (no key needed).
+// LinkedIn does NOT provide a free public jobs API — it requires business
+// partnership approval. LinkedIn search *links* are generated separately.
+
+function normalizeArbeitnowJob(job: ArbeitnowJob): JobPosting {
+  const cleanDescription = stripHtmlTags(job.description ?? "");
+  const skillCandidates = extractSkillsFromText(`${job.title} ${cleanDescription}`);
+
+  return {
+    id: `arbeitnow-${job.slug}`,
+    title: job.title,
+    company: job.company_name,
+    location: job.remote ? "Remote" : (job.location || "Unspecified"),
+    description: cleanDescription,
+    requiredSkills: skillCandidates.slice(0, 5),
+    niceToHaveSkills: skillCandidates.slice(5, 10),
+    experienceLevel: inferExperienceLevel(`${job.title} ${cleanDescription}`),
+    source: "arbeitnow",
+    jobUrl: job.url,
+    companyLinkedinUrl: buildLinkedInCompanySearchUrl(job.company_name),
+    postedAt: job.created_at ? new Date(job.created_at * 1000).toISOString() : undefined
+  };
+}
+
+export async function fetchArbeitnowJobs(options?: {
+  query?: string;
+  limit?: number;
+}): Promise<JobPosting[]> {
+  const limit = Math.max(5, Math.min(options?.limit ?? 20, 50));
+  const query = (options?.query ?? "").trim();
+
+  const endpoint = query
+    ? `https://arbeitnow.com/api/job-board-api?search=${encodeURIComponent(query)}`
+    : "https://arbeitnow.com/api/job-board-api";
+
+  const response = await fetch(endpoint);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch Arbeitnow jobs (${response.status}).`);
+  }
+
+  const payload = (await response.json()) as ArbeitnowResponse;
+  return (payload.data ?? []).slice(0, limit).map(normalizeArbeitnowJob);
+}
+
+// ── Combined live fetch ─────────────────────────────────────────
+
+export async function fetchAllLiveJobs(options?: {
+  query?: string;
+  limit?: number;
+}): Promise<{ jobs: JobPosting[]; sources: string[] }> {
+  const limit = options?.limit ?? 30;
+  const perSource = Math.ceil(limit / 2);
+
+  const [remotiveResult, arbeitnowResult] = await Promise.allSettled([
+    fetchRemotiveJobs({ query: options?.query, limit: perSource }),
+    fetchArbeitnowJobs({ query: options?.query, limit: perSource }),
+  ]);
+
+  const jobs: JobPosting[] = [];
+  const sources: string[] = [];
+
+  if (remotiveResult.status === "fulfilled" && remotiveResult.value.length > 0) {
+    jobs.push(...remotiveResult.value);
+    sources.push("remotive");
+  }
+  if (arbeitnowResult.status === "fulfilled" && arbeitnowResult.value.length > 0) {
+    jobs.push(...arbeitnowResult.value);
+    sources.push("arbeitnow");
+  }
+
+  return { jobs: jobs.slice(0, limit), sources };
+}
+
+// ── LinkedIn job search URL builder ─────────────────────────────
+// LinkedIn does not expose a free/open jobs API, so we generate search
+// URLs that open directly in the user's browser — no API key required.
 
 export function buildLinkedInJobSearchUrls(queries: string[], location?: string): string[] {
   const locationPart = location?.trim() ? `&location=${encodeURIComponent(location.trim())}` : "";
