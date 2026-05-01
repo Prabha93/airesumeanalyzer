@@ -36,43 +36,48 @@ No sign-up. No API key. Fully open-source.
 
 ## Architecture
 
-```
-Browser (React + Vite)
-        │
-        │  POST /api/match?useLiveJobs=true&query=...&topK=5
-        │  multipart/form-data  { resume: <file> }
-        ▼
-┌─────────────────────────────────────────────────────┐
-│                  Express API  :8080                  │
-│                                                     │
-│  ┌─────────────────┐   ┌──────────────────────────┐ │
-│  │  resumeParser   │   │     externalJobs         │ │
-│  │  ─────────────  │   │  ──────────────────────  │ │
-│  │  pdf-parse      │   │  GET remotive.com/api    │ │
-│  │  mammoth        │   │  normalise → JobPosting  │ │
-│  │  skill taxonomy │   │  extract skills from JD  │ │
-│  │  → ResumeProfile│   └──────────────────────────┘ │
-│  └────────┬────────┘              │                 │
-│           │      jobs[]           │                 │
-│           ▼                       ▼                 │
-│        ┌──────────────────────────────────┐         │
-│        │           matcher               │         │
-│        │  required coverage  × 0.60      │         │
-│        │  nice-to-have       × 0.15      │         │
-│        │  role keyword fit   × 0.15      │         │
-│        │  experience fit     × 0.10      │         │
-│        │  → ranked MatchResult[]         │         │
-│        └──────────────────────────────────┘         │
-│                                                     │
-│  Response: { profile, matches, profileSuggestions } │
-└─────────────────────────────────────────────────────┘
-        │
-        ▼
-Browser renders:
-  • Resume signals (skills chips, experience, education)
-  • LinkedIn search suggestion pills
-  • Ranked job cards: score bar, matched/missing chips,
-    Apply link, Company LinkedIn link, score breakdown
+```mermaid
+flowchart TD
+    User(["👤 User\n(Browser)"])
+
+    subgraph Web["Frontend — React + Vite :5173"]
+        UI["Upload Form\nJob keywords · Location · Live toggle"]
+        Results["Results Dashboard\nScore bars · Skill chips · Apply links"]
+    end
+
+    subgraph API["Backend — Express API :8080"]
+        Router["/api/match"]
+
+        subgraph Parse["Resume Processing"]
+            Extractor["Text Extractor\npdf-parse · mammoth · plain text"]
+            Profiler["Profile Builder\nSkill taxonomy · Experience regex\n→ ResumeProfile"]
+        end
+
+        subgraph Jobs["Job Ingestion"]
+            Remotive["Remotive Adapter\nGET remotive.com/api/remote-jobs\nNormalise → JobPosting[]"]
+            SampleFallback["Sample Jobs Fallback\n(if live fetch fails)"]
+        end
+
+        Matcher["Scoring Engine\nRequired coverage × 0.60\nNice-to-have × 0.15\nRole keyword fit × 0.15\nExperience fit × 0.10\n→ ranked MatchResult[]"]
+
+        Suggest["Suggestion Builder\nLinkedIn job search URLs\nRecommended role queries"]
+    end
+
+    ExternalAPI(["🌐 Remotive\nOpen Jobs API"])
+
+    User -->|"Upload resume\n+ search params"| UI
+    UI -->|"POST /api/match\nmultipart form-data"| Router
+    Router --> Extractor
+    Extractor --> Profiler
+    Router --> Remotive
+    Remotive -->|"fetch"| ExternalAPI
+    ExternalAPI -->|"job listings"| Remotive
+    Remotive -->|"JobPosting[]"| Matcher
+    SampleFallback -.->|"fallback"| Matcher
+    Profiler -->|"ResumeProfile"| Matcher
+    Matcher -->|"MatchResult[]"| Suggest
+    Suggest -->|"{ profile, matches,\nprofileSuggestions }"| Results
+    Results --> User
 ```
 
 ---
